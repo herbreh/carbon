@@ -108,7 +108,7 @@ class DashboardFragment : Fragment() {
     private fun fetchFoodInfo(barcode: String) {
         val apiKey = "a0e02a461adc46d593b5"
         // C005 서비스 ID를 사용하고 BAR_CD 파라미터로 검색
-        val url = "http://openapi.foodsafetykorea.go.kr/api/$apiKey/I2570/xml/1/1/BAR_CD=$barcode"
+        val url = "http://openapi.foodsafetykorea.go.kr/api/$apiKey/I2570/xml/1/3/BRCD_NO=$barcode"
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
@@ -134,7 +134,7 @@ class DashboardFragment : Fragment() {
                                             break
                                         }
                                     }
-                                    "PRDLST_NM" -> {
+                                    "PRDT_NM" -> {
                                         parser.next()
                                         result.append("제품명: ${parser.text}\n")
                                         isResultFound = true

@@ -3,17 +3,17 @@ package com.example.carbon3
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.viewpager2.widget.ViewPager2
-import com.example.carbon3.databinding.ActivityMainBinding
+import com.example.carbon3.databinding.ActivityCameraBinding
 
 class CameraActivity : AppCompatActivity() {
-    private lateinit var binding: ActivityMainBinding
+    private lateinit var binding: ActivityCameraBinding
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         // 레이아웃 바인딩
-        binding = ActivityMainBinding.inflate(layoutInflater)
+        binding = ActivityCameraBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
         supportActionBar?.title = "탄소중립"
