@@ -39,46 +39,43 @@ android {
 }
 
 dependencies {
-
+    // AndroidX 기본 의존성
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
     implementation(libs.androidx.constraintlayout)
-    implementation(libs.androidx.lifecycle.livedata.ktx)
-    implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.navigation.fragment.ktx)
     implementation(libs.androidx.navigation.ui.ktx)
 
+    // ML Kit 바코드 스캐닝
+    implementation("com.google.mlkit:barcode-scanning:17.0.3")
 
-    // ML Kit 바코드 스캐닝 의존성
-    implementation("com.google.mlkit:barcode-scanning:17.0.2")
-
-    val cameraxVersion = "1.5.0-alpha05"
+    // CameraX
+    val cameraxVersion = "1.3.1" // 안정화 버전으로 변경
     implementation("androidx.camera:camera-core:${cameraxVersion}")
     implementation("androidx.camera:camera-camera2:${cameraxVersion}")
     implementation("androidx.camera:camera-lifecycle:${cameraxVersion}")
     implementation("androidx.camera:camera-view:${cameraxVersion}")
 
-
-    // Retrofit2 의존성
+    // Retrofit2 + OkHttp
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
-    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
-    implementation ("com.squareup.retrofit2:converter-simplexml:2.9.0")
-    // SimpleXmlConverterFactory 대신 Jackson XML Converter 사용
-    implementation ("com.squareup.retrofit2:converter-jackson:2.9.0") // Jackson JSON Converter
-    implementation ("com.fasterxml.jackson.dataformat:jackson-dataformat-xml:2.15.2") // Jackson XML module
+    implementation("com.squareup.retrofit2:converter-simplexml:2.9.0")
+    //implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.9.3")
+    implementation ("com.squareup.retrofit2:converter-scalars:2.9.0")
+    implementation("com.fasterxml.jackson.core:jackson-core:2.15.2")
+    implementation("com.fasterxml.jackson.core:jackson-databind:2.15.2")
+    implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-xml:2.15.2")
 
     // Coroutines
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.4")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
     // Lifecycle
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.1")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.1")
+    implementation(libs.androidx.lifecycle.livedata.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.ktx)
 
-    implementation ("com.squareup.okhttp3:logging-interceptor:4.9.3")
-
-
+    // 테스트 의존성
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

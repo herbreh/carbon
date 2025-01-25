@@ -1,54 +1,43 @@
 package com.example.carbon3.ui.dashboard
 
-import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.camera.core.CameraSelector
-import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
-import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContentProviderCompat.requireContext
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import com.example.carbon3.databinding.FragmentDashboardBinding
-import com.example.carbon3.network.FoodApiService
-import com.example.carbon3.network.NetworkModule
-import com.google.mlkit.vision.barcode.BarcodeScanner
-import com.google.mlkit.vision.barcode.BarcodeScannerOptions
-import com.google.mlkit.vision.barcode.BarcodeScanning
-import com.google.mlkit.vision.barcode.common.Barcode
-import com.google.mlkit.vision.common.InputImage
+import com.example.carbon3.network.BarcodeAnalyzer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.xmlpull.v1.XmlPullParser
+import org.xmlpull.v1.XmlPullParserFactory
+import java.net.URL
+import android.Manifest
 
-@ExperimentalGetImage
+
 class DashboardFragment : Fragment() {
     private var _binding: FragmentDashboardBinding? = null
     private val binding get() = _binding!!
 
-    // CameraX
     private lateinit var cameraProvider: ProcessCameraProvider
-    private lateinit var barcodeScanner: BarcodeScanner
+    private lateinit var cameraSelector: CameraSelector
+    private lateinit var previewUseCase: Preview
+    private lateinit var analysisUseCase: ImageAnalysis
 
-    // Retrofit API Service
-    private val foodApiService: FoodApiService by lazy {
-        NetworkModule.foodApiService
-    }
-
-    private val serviceKey = "%2FhtUdqATshOhd%2Fy8WDXw%2FQmL%2F8YHT86WpwNOjkwAFrxVmaoqsgFG%2BsMw%2FJHmkXREz7MtYrzPTXqLseQsZGxTyQ%3D%3D"
-
-    companion object {
-        private const val TAG = "DashboardFragment"
-        private const val REQUEST_CODE_PERMISSIONS = 10
-        private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA)
-    }
+    private var isScanning = true
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -62,41 +51,53 @@ class DashboardFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        // 카메라 권한 체크 및 요청
         if (allPermissionsGranted()) {
             startCamera()
         } else {
-            requestPermissions(REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
+            ActivityCompat.requestPermissions(
+                requireActivity(),
+                REQUIRED_PERMISSIONS,
+                REQUEST_CODE_PERMISSIONS
+            )
         }
     }
 
     private fun startCamera() {
-        val options = BarcodeScannerOptions.Builder()
-            .setBarcodeFormats(Barcode.FORMAT_ALL_FORMATS)
-            .build()
-        barcodeScanner = BarcodeScanning.getClient(options)
-
         val cameraProviderFuture = ProcessCameraProvider.getInstance(requireContext())
+
         cameraProviderFuture.addListener({
             cameraProvider = cameraProviderFuture.get()
 
-            val preview = Preview.Builder().build()
-            preview.setSurfaceProvider(binding.cameraPreview.surfaceProvider)
+            // Preview UseCase 설정
+            previewUseCase = Preview.Builder().build()
+            previewUseCase.setSurfaceProvider(binding.cameraPreview.surfaceProvider)
 
-            val imageAnalysis = ImageAnalysis.Builder()
+            // ImageAnalysis UseCase 설정
+            analysisUseCase = ImageAnalysis.Builder()
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build()
 
-            imageAnalysis.setAnalyzer(ContextCompat.getMainExecutor(requireContext())) { imageProxy ->
-                processImageProxy(imageProxy)
-            }
+            analysisUseCase.setAnalyzer(
+                ContextCompat.getMainExecutor(requireContext()),
+                BarcodeAnalyzer { barcodeValue ->
+                    if (isScanning) {
+                        isScanning = false
+                        fetchFoodInfo(barcodeValue)
+                    }
+                }
+            )
+
+            // 후면 카메라 선택
+            cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
             try {
                 cameraProvider.unbindAll()
                 cameraProvider.bindToLifecycle(
                     viewLifecycleOwner,
-                    CameraSelector.DEFAULT_BACK_CAMERA,
-                    preview,
-                    imageAnalysis
+                    cameraSelector,
+                    previewUseCase,
+                    analysisUseCase
                 )
             } catch (e: Exception) {
                 Log.e(TAG, "카메라 바인딩 실패", e)
@@ -104,72 +105,86 @@ class DashboardFragment : Fragment() {
         }, ContextCompat.getMainExecutor(requireContext()))
     }
 
-    @ExperimentalGetImage
-    private fun processImageProxy(imageProxy: ImageProxy) {
-        val mediaImage = imageProxy.image
-        if (mediaImage != null) {
-            val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
-            barcodeScanner.process(image)
-                .addOnSuccessListener { barcodes ->
-                    if (barcodes.isNotEmpty()) {
-                        val barcode = barcodes[0]
-                        val barcodeValue = barcode.rawValue ?: ""
-                        getNutriProcessInfoFromApi(barcodeValue)
-                    }
-                }
-                .addOnFailureListener {
-                    Log.e(TAG, "바코드 스캔 실패", it)
-                }
-                .addOnCompleteListener {
-                    imageProxy.close()
-                }
-        } else {
-            imageProxy.close()
-        }
-    }
+    private fun fetchFoodInfo(barcode: String) {
+        val apiKey = "a0e02a461adc46d593b5"
+        // C005 서비스 ID를 사용하고 BAR_CD 파라미터로 검색
+        val url = "http://openapi.foodsafetykorea.go.kr/api/$apiKey/I2570/xml/1/1/BAR_CD=$barcode"
 
-    private fun getNutriProcessInfoFromApi(barcodeValue: String) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val response = foodApiService.getNutriProcessInfo(
-                    serviceKey = serviceKey,
-                    pageNo = 1,
-                    numOfRows = 5,
-                    type = "json"
-                )
+                val response = URL(url).readText()
+
                 withContext(Dispatchers.Main) {
-                    if (response.response?.header?.resultCode == "00") {
-                        val items = response.response.body?.items?.item
-                        if (!items.isNullOrEmpty()) {
-                            val firstItem = items[0]
-                            binding.scanText.text = """
-                                제품명: ${firstItem.prdlstNm}
-                                총내용량: ${firstItem.totalCnt}
-                                상세페이지: ${firstItem.pageUrl}
-                            """.trimIndent()
-                        } else {
-                            binding.scanText.text = "아이템이 없습니다."
+                    val factory = XmlPullParserFactory.newInstance()
+                    val parser = factory.newPullParser()
+                    parser.setInput(response.reader())
+
+                    var eventType = parser.eventType
+                    var result = StringBuilder()
+                    var isResultFound = false
+
+                    while (eventType != XmlPullParser.END_DOCUMENT) {
+                        when (eventType) {
+                            XmlPullParser.START_TAG -> {
+                                when (parser.name) {
+                                    "RESULT" -> {
+                                        parser.next()
+                                        if (parser.text == "NO_RESULT") {
+                                            result.append("해당 바코드의 제품을 찾을 수 없습니다.")
+                                            break
+                                        }
+                                    }
+                                    "PRDLST_NM" -> {
+                                        parser.next()
+                                        result.append("제품명: ${parser.text}\n")
+                                        isResultFound = true
+                                    }
+                                    "NUTR_CONT1" -> {
+                                        parser.next()
+                                        result.append("열량: ${parser.text}kcal\n")
+                                    }
+                                    "NUTR_CONT2" -> {
+                                        parser.next()
+                                        result.append("탄수화물: ${parser.text}g\n")
+                                    }
+                                }
+                            }
                         }
-                    } else {
-                        val msg = response.response?.header?.resultMsg
-                        binding.scanText.text = "resultCode != 00: $msg"
+                        eventType = parser.next()
                     }
+
+                    if (!isResultFound) {
+                        binding.productInfoText.text = "해당 바코드의 제품을 찾을 수 없습니다."
+                    } else {
+                        binding.productInfoText.text = result.toString()
+                    }
+                    binding.scanText.text = "바코드: $barcode"
+
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        isScanning = true
+                    }, 3000)
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "API 호출 실패", e)
                 withContext(Dispatchers.Main) {
-                    binding.scanText.text = "API 실패: ${e.message}"
+                    binding.productInfoText.text = "정보를 불러오는데 실패했습니다."
                 }
             }
         }
     }
 
     private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
-        ContextCompat.checkSelfPermission(requireContext(), it) == PackageManager.PERMISSION_GRANTED
+        ContextCompat.checkSelfPermission(
+            requireContext(), it) == PackageManager.PERMISSION_GRANTED
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
+    }
+
+    companion object {
+        private const val TAG = "DashboardFragment"
+        private const val REQUEST_CODE_PERMISSIONS = 10
+        private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA)
     }
 }
