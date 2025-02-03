@@ -49,6 +49,7 @@ dependencies {
 
     // ML Kit 바코드 스캐닝
     implementation("com.google.mlkit:barcode-scanning:17.0.3")
+    implementation(libs.androidx.junit.ktx)
 
     // CameraX
     val cameraxVersion = "1.3.1" // 안정화 버전으로 변경
@@ -70,6 +71,8 @@ dependencies {
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+
+    implementation ("com.google.android.material:material:1.8.0") // 최신 버전으로 설정
 
     // Lifecycle
     implementation(libs.androidx.lifecycle.livedata.ktx)
